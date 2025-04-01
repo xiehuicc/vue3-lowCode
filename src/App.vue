@@ -81,7 +81,8 @@
                   v-if="selectedComponent && selectedComponent.id === comp.id && !comp.locked"
                   :visible="true"
                   @resize-start="(data) => handleResizeStart(data, comp)"
-                  @resize="handleResize"
+                  @resize="(data) => handleResize(data)"
+                  @resize-end="handleResizeEnd"
                 />
               </template>
             </component>
@@ -118,10 +119,10 @@ import type { Component } from '@/types/component'  // 使用 type 导入，解�
 import ContextMenu from '@/components/common/ContextMenu.vue'
 import ResizeHandles from '@/components/common/ResizeHandles.vue'
 
-// 导入增强组件
-import TextEnhanced from '@/components/basic/TextEnhanced.vue'
-import DynamicTableEnhanced from '@/components/data/tables/DynamicTableEnhanced.vue'
-import DatePickerEnhanced from '@/components/interactive/DatePickerEnhanced.vue'
+// 导入组件
+import Text from '@/components/basic/Text.vue'
+import DynamicTable from '@/components/data/tables/DynamicTable.vue'
+import DatePicker from '@/components/interactive/DatePicker.vue'
 
 // 修改组件列表和选中组件的类型定义
 const canvas = ref<HTMLElement | null>(null)
@@ -171,7 +172,6 @@ const handleDrop = (event: DragEvent) => {
   
   // 获取拖拽的组件类型
   const componentType = event.dataTransfer.getData('componentType') as ComponentType
-  console.log('componentType==>', componentType)
   if (!componentType) return
   
   // 获取放置位置
@@ -232,6 +232,8 @@ const handleResizeStart = (data: { direction: string, startEvent: MouseEvent }, 
 
 // 处理缩放
 const handleResize = (data: { direction: string, moveEvent: MouseEvent }) => {
+  console.log('data==>', data)
+  console.log('isResizing==>', isResizing, selectedComponent.value, selectedComponent.value?.locked)
   if (!isResizing.value || !selectedComponent.value || selectedComponent.value.locked) return
   
   // 计算鼠标移动距离
@@ -496,13 +498,15 @@ const handleCanvasClick = () => {
 // 根据组件类型获取对应的组件
 const getComponentByType = (type: ComponentType) => {
   // 使用markRaw避免不必要的代理
+  // Vue3默认会对组件对象进行响应式包装，但组件定义本身是静态的，不需要响应式特性。使用 markRaw 可以跳过这个转换过程
+  // 对于频繁使用的静态组件（如图表、表格组件），跳过响应式转换可以节省内存和计算资源
   switch (type) {
     case ComponentType.TEXT:
-      return markRaw(TextEnhanced);
+      return markRaw(Text);
     case ComponentType.TABLE_DYNAMIC:
-      return markRaw(DynamicTableEnhanced);
+      return markRaw(DynamicTable);
     case ComponentType.DATE_PICKER:
-      return markRaw(DatePickerEnhanced);
+      return markRaw(DatePicker);
     default:
       return null;
   }

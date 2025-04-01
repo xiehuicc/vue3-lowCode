@@ -1,6 +1,7 @@
 <template>
   <div class="date-picker-container" :style="containerStyle">
     <el-date-picker
+      v-if="!selectedDate"
       v-model="selectedDate"
       :type="component.props.type || 'datetime'"
       :placeholder="component.props.placeholder || '请选择日期时间'"
@@ -11,19 +12,23 @@
       :style="pickerStyle"
       @change="handleChange"
     />
+    <div v-else  class="date-display">
+      <span>{{ formattedDate }}</span>
+    </div>
   </div>
 </template>
 
 <script lang="ts" setup>
 import { ref, computed, watch, defineProps, defineEmits } from 'vue'
 import type { Component } from '@/types/component'
+import dayjs from 'dayjs'
 
 interface Props {
   component: Component;
 }
 
 const props = defineProps<Props>();
-const emit = defineEmits(['change']);
+const emit = defineEmits(['change', 'update:component']);
 
 // 选中的日期
 const selectedDate = ref<string | Date | null>(null);
@@ -36,6 +41,19 @@ const containerStyle = computed(() => {
   }
 });
 
+// 格式化日期显示
+const formattedDate = computed(() => {
+  if (!selectedDate.value) return '';
+  
+  try {
+    const format = props.component.props.displayFormat || 'YYYY年MM月DD日 HH时mm分ss秒';
+    return dayjs(selectedDate.value).format(format);
+  } catch (error) {
+    console.error('日期格式化错误:', error);
+    return String(selectedDate.value);
+  }
+});
+
 // 计算日期选择器样式
 const pickerStyle = computed(() => {
   return {
@@ -45,6 +63,12 @@ const pickerStyle = computed(() => {
 
 // 处理日期变化
 const handleChange = (val: string | Date | null) => {
+  // 更新组件属性
+  const updatedComponent = { ...props.component };
+  updatedComponent.props.defaultValue = val;
+  emit('update:component', updatedComponent);
+  
+  // 触发变化事件
   emit('change', val);
 };
 
@@ -63,6 +87,17 @@ watch(
 
 <style lang="less" scoped>
 .date-picker-container {
-  display: inline-block;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  
+  .date-display {
+    padding: 5px;
+    background-color: #f5f7fa;
+    border-radius: 4px;
+    font-size: 14px;
+    color: #606266;
+    border: 1px solid #e4e7ed;
+  }
 }
 </style>

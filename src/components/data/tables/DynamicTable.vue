@@ -2,7 +2,7 @@
   <div class="dynamic-table-container" :style="containerStyle">
     <h3 v-if="component.props.showTitle" class="table-title">{{ component.props.title || '动态列表格' }}</h3>
     
-    <div v-if="component.props.dynamicColumns" class="column-config">
+    <div class="table-toolbar">
       <el-button type="primary" size="small" @click="showColumnDialog = true">
         <el-icon><Operation /></el-icon>
         配置列
@@ -15,6 +15,7 @@
       stripe
       style="width: 100%"
       :height="component.props.tableHeight"
+      @cell-contextmenu="handleCellContextMenu"
     >
       <el-table-column
         v-for="column in visibleColumns"
@@ -44,19 +45,57 @@
         </span>
       </template>
     </el-dialog>
+    
+    <!-- 单元格右键菜单 -->
+    <div 
+      v-show="cellContextMenuVisible" 
+      class="cell-context-menu" 
+      :style="{
+        left: `${cellContextMenuPosition.x}px`,
+        top: `${cellContextMenuPosition.y}px`
+      }"
+    >
+      <div class="menu-item" @click="handleAddRow('before')">
+        <el-icon><Plus /></el-icon>
+        <span>在上方插入行</span>
+      </div>
+      <div class="menu-item" @click="handleAddRow('after')">
+        <el-icon><Plus /></el-icon>
+        <span>在下方插入行</span>
+      </div>
+      <div class="menu-item" @click="handleDeleteRow">
+        <el-icon><Delete /></el-icon>
+        <span>删除当前行</span>
+      </div>
+      <div class="menu-divider"></div>
+      <div class="menu-item" @click="handleAddColumn('before')">
+        <el-icon><Plus /></el-icon>
+        <span>在左侧插入列</span>
+      </div>
+      <div class="menu-item" @click="handleAddColumn('after')">
+        <el-icon><Plus /></el-icon>
+        <span>在右侧插入列</span>
+      </div>
+      <div class="menu-item" @click="handleDeleteColumn">
+        <el-icon><Delete /></el-icon>
+        <span>删除当前列</span>
+      </div>
+    </div>
+    <slot></slot>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue';
 import { Component } from '@/types/component';
-import { Operation } from '@element-plus/icons-vue';
+import { Operation, Plus, Delete } from '@element-plus/icons-vue';
 
 interface Props {
   component: Component;
 }
 
 const props = defineProps<Props>();
+const emit = defineEmits(['update:component']);
 
 // 表格数据
 const tableData = ref<any[]>([]);
@@ -64,6 +103,11 @@ const allColumns = ref<any[]>([]);
 const visibleColumns = ref<any[]>([]);
 const selectedColumnKeys = ref<string[]>([]);
 const showColumnDialog = ref(false);
+
+// 右键菜单相关
+const cellContextMenuVisible = ref(false);
+const cellContextMenuPosition = ref({ x: 0, y: 0 });
+const currentCell = ref<{ row: number, column: string | null }>({ row: -1, column: null });
 
 // 计算容器样式
 const containerStyle = computed(() => {
@@ -125,6 +169,16 @@ const updateVisibleColumns = () => {
 const applyColumnConfig = () => {
   updateVisibleColumns();
   showColumnDialog.value = false;
+  
+  // 更新组件配置
+  const updatedComponent = { ...props.component };
+  updatedComponent.props.columns = visibleColumns.value.map(col => ({
+    prop: col.prop,
+    label: col.label,
+    width: col.width,
+    sortable: col.sortable
+  }));
+  emit('update:component', updatedComponent);
 };
 
 // 加载表格数据
@@ -132,6 +186,153 @@ const loadTableData = () => {
   if (props.component.data?.staticData) {
     tableData.value = props.component.data.staticData;
   }
+};
+
+// 处理单元格右键菜单
+const handleCellContextMenu = (row: any, column: any, cell: HTMLElement, event: MouseEvent) => {
+  event.preventDefault();
+  event.stopPropagation();
+  
+  // 如果组件被锁定，则不允许操作
+  if (props.component.locked) return;
+  
+  // 设置右键菜单位置
+  cellContextMenuPosition.value.x = event.clientX;
+  cellContextMenuPosition.value.y = event.clientY;
+  
+  // 记录当前单元格信息
+  currentCell.value.row = tableData.value.indexOf(row);
+  currentCell.value.column = column.property;
+  
+  // 显示右键菜单
+  cellContextMenuVisible.value = true;
+  
+  // 添加全局点击事件监听，用于关闭右键菜单
+  document.addEventListener('click', handleDocumentClick);
+};
+
+// 处理文档点击事件，用于关闭右键菜单
+const handleDocumentClick = () => {
+  cellContextMenuVisible.value = false;
+  document.removeEventListener('click', handleDocumentClick);
+};
+
+// 在组件卸载前移除事件监听
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleDocumentClick);
+});
+
+// 添加行
+const handleAddRow = (position: 'before' | 'after') => {
+  if (currentCell.value.row === -1) return;
+  
+  // 创建新行数据
+  const newRow: Record<string, any> = {};
+  allColumns.value.forEach(col => {
+    newRow[col.prop] = '';
+  });
+  
+  // 插入新行
+  const insertIndex = position === 'before' ? currentCell.value.row : currentCell.value.row + 1;
+  tableData.value.splice(insertIndex, 0, newRow);
+  
+  // 更新组件数据
+  updateComponentData();
+};
+
+// 删除行
+const handleDeleteRow = () => {
+  if (currentCell.value.row === -1) return;
+  
+  // 删除行
+  tableData.value.splice(currentCell.value.row, 1);
+  
+  // 更新组件数据
+  updateComponentData();
+};
+
+// 添加列
+const handleAddColumn = (position: 'before' | 'after') => {
+  if (!currentCell.value.column) return;
+  
+  // 获取当前列的索引
+  const currentColumnIndex = allColumns.value.findIndex(col => col.prop === currentCell.value.column);
+  if (currentColumnIndex === -1) return;
+  
+  // 创建新列
+  const newColumnIndex = position === 'before' ? currentColumnIndex : currentColumnIndex + 1;
+  const newColumnName = `column${Date.now()}`;
+  const newColumn = {
+    key: newColumnName,
+    label: `新列${newColumnIndex + 1}`,
+    prop: newColumnName,
+    width: '',
+    sortable: true,
+    disabled: false
+  };
+  
+  // 插入新列
+  allColumns.value.splice(newColumnIndex, 0, newColumn);
+  selectedColumnKeys.value.push(newColumn.key);
+  updateVisibleColumns();
+  
+  // 为每行数据添加新列
+  tableData.value.forEach(row => {
+    row[newColumnName] = '';
+  });
+  
+  // 更新组件配置
+  updateComponentConfig();
+};
+
+// 删除列
+const handleDeleteColumn = () => {
+  if (!currentCell.value.column) return;
+  
+  // 获取当前列的索引
+  const currentColumnIndex = allColumns.value.findIndex(col => col.prop === currentCell.value.column);
+  if (currentColumnIndex === -1) return;
+  
+  // 删除列
+  const columnToRemove = allColumns.value[currentColumnIndex];
+  allColumns.value.splice(currentColumnIndex, 1);
+  
+  // 从选中列中移除
+  const keyIndex = selectedColumnKeys.value.indexOf(columnToRemove.key);
+  if (keyIndex !== -1) {
+    selectedColumnKeys.value.splice(keyIndex, 1);
+  }
+  updateVisibleColumns();
+  
+  // 从每行数据中移除该列
+  tableData.value.forEach(row => {
+    delete row[columnToRemove.prop];
+  });
+  
+  // 更新组件配置
+  updateComponentConfig();
+};
+
+// 更新组件配置
+const updateComponentConfig = () => {
+  const updatedComponent = { ...props.component };
+  updatedComponent.props.columns = visibleColumns.value.map(col => ({
+    prop: col.prop,
+    label: col.label,
+    width: col.width,
+    sortable: col.sortable
+  }));
+  emit('update:component', updatedComponent);
+};
+
+// 更新组件数据
+const updateComponentData = () => {
+  const updatedComponent = { ...props.component };
+  if (!updatedComponent.data) {
+    updatedComponent.data = {};
+  }
+  updatedComponent.data.staticData = [...tableData.value];
+  emit('update:component', updatedComponent);
 };
 
 // 监听组件属性变化
@@ -167,6 +368,49 @@ onMounted(() => {
 .dynamic-table-container {
   .table-title {
     margin-bottom: 15px;
+  }
+  
+  .table-toolbar {
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: flex-end;
+  }
+  
+  .cell-context-menu {
+    position: fixed;
+    z-index: 1000;
+    background: white;
+    border: 1px solid #e4e7ed;
+    border-radius: 4px;
+    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+    padding: 5px 0;
+    min-width: 150px;
+    
+    .menu-item {
+      padding: 8px 15px;
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      
+      &:hover {
+        background-color: #f5f7fa;
+      }
+      
+      .el-icon {
+        margin-right: 8px;
+        font-size: 16px;
+      }
+    }
+    
+    .menu-divider {
+      height: 1px;
+      background-color: #e4e7ed;
+      margin: 5px 0;
+    }
+  }
+.dynamic-table-container {
+  .table-title {
+    margin-bottom: 15px;
     font-size: 16px;
   }
   
@@ -181,5 +425,6 @@ onMounted(() => {
     justify-content: flex-end;
     margin-top: 20px;
   }
+}
 }
 </style>
