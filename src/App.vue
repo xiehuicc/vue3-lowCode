@@ -43,7 +43,7 @@
             >
               <p>拖拽组件到此处创建页面</p>
             </div>
-            <!-- 修改后的组件渲染部分 -->
+            <!-- 组件渲染部分 -->
             <component
               v-for="comp in components"
               :key="comp.id"
@@ -61,7 +61,9 @@
                 height: comp.style?.height,
                 ...comp.style
               }"
+            
               @mousedown="handleComponentMouseDown($event, comp)"
+              @mouseout="handleComponentMouseOut($event, comp)"
               @contextmenu="handleContextMenu($event, comp)"
               @update:component="updateComponent"
             >
@@ -112,10 +114,9 @@
 
 <script lang="ts" setup>
 import { ref, reactive, onMounted, onBeforeUnmount, markRaw } from 'vue'
-import { Picture, Grid, Document, Operation, Calendar, Tickets } from '@element-plus/icons-vue'
 import { materialCategories, getDefaultComponentConfig } from '@/config/materials'
 import { ComponentType } from '@/types/component'
-import type { Component } from '@/types/component'  // 使用 type 导入，解决将类型 Component 作为值使用问题
+import type { Component, ResizeEventData } from '@/types/component'  // 使用 type 导入，解决将类型 Component 作为值使用问题
 import ContextMenu from '@/components/common/ContextMenu.vue'
 import ResizeHandles from '@/components/common/ResizeHandles.vue'
 
@@ -123,6 +124,11 @@ import ResizeHandles from '@/components/common/ResizeHandles.vue'
 import Text from '@/components/basic/Text.vue'
 import DynamicTable from '@/components/data/tables/DynamicTable.vue'
 import DatePicker from '@/components/interactive/DatePicker.vue'
+
+// 导入图表组件
+import LineChart from '@/components/data/charts/LineChart.vue'
+import BarChart from '@/components/data/charts/BarChart.vue'
+import PieChart from '@/components/data/charts/PieChart.vue'
 
 // 修改组件列表和选中组件的类型定义
 const canvas = ref<HTMLElement | null>(null)
@@ -209,9 +215,12 @@ const handleDrop = (event: DragEvent) => {
 }
 
 // 处理缩放开始
-const handleResizeStart = (data: { direction: string, startEvent: MouseEvent }, component: Component) => {
-  if (!component || component.locked) return
-  
+const handleResizeStart = (data: ResizeEventData, component: Component) => {
+  if (!component || component.locked) {
+    console.log('Component', component.id, 'is locked, cannot resize');
+    return;
+  }
+
   // 记录缩放开始状态
   isResizing.value = true
   resizeDirection.value = data.direction
@@ -221,9 +230,9 @@ const handleResizeStart = (data: { direction: string, startEvent: MouseEvent }, 
   startPosition.y = data.startEvent.clientY
   
   // 记录组件起始尺寸
-  const style = component.style as any
-  startSize.width = parseInt(style.width as string) || 100
-  startSize.height = parseInt(style.height as string) || 100
+  const { style } = component
+  startSize.width = Number(style.width) || 100
+  startSize.height = Number(style.height) || 100
   
   // 记录组件起始位置
   startComponentPosition.left = parseInt(style.left as string) || 0
@@ -231,10 +240,9 @@ const handleResizeStart = (data: { direction: string, startEvent: MouseEvent }, 
 }
 
 // 处理缩放
-const handleResize = (data: { direction: string, moveEvent: MouseEvent }) => {
-  console.log('data==>', data)
-  console.log('isResizing==>', isResizing, selectedComponent.value, selectedComponent.value?.locked)
-  if (!isResizing.value || !selectedComponent.value || selectedComponent.value.locked) return
+const handleResize = (data: ResizeEventData) => {
+  console.log('handleResize', data)
+  if (!isResizing.value || !selectedComponent.value || selectedComponent.value.locked || !data.moveEvent) return
   
   // 计算鼠标移动距离
   const deltaX = data.moveEvent.clientX - startPosition.x
@@ -289,14 +297,13 @@ const handleResize = (data: { direction: string, moveEvent: MouseEvent }) => {
   newHeight = Math.max(20, newHeight)
   
   // 更新组件样式
-  const newStyle = { ...selectedComponent.value.style }
-  Object.assign(newStyle, {
+  selectedComponent.value.style = {
+    ...selectedComponent.value.style,
     width: `${newWidth}px`,
     height: `${newHeight}px`,
     left: `${newLeft}px`,
     top: `${newTop}px`
-  })
-  selectedComponent.value.style = newStyle
+  }
 }
 
 // 处理缩放结束
@@ -304,7 +311,21 @@ const handleResizeEnd = () => {
   isResizing.value = false
   resizeDirection.value = ''
 }
-
+const handleComponentClick = (component: Component) => {
+  // 如果点击的是已选中的组件，不做任何操作
+  if (selectedComponent.value && selectedComponent.value.id === component.id) return
+  
+  // 清除之前选中组件的边框样式
+  if (selectedComponent.value) {
+    selectedComponent.value.style = {
+      ...selectedComponent.value.style,
+      border: 'none'
+    }
+  }
+  
+  // 选中当前组件
+  selectedComponent.value = component
+}
 // 处理组件鼠标按下事件
 const handleComponentMouseDown = (event: MouseEvent, component: Component) => {
   // 阻止事件冒泡
@@ -331,6 +352,13 @@ const handleComponentMouseDown = (event: MouseEvent, component: Component) => {
   // 添加鼠标移动和松开事件监听
   document.addEventListener('mousemove', handleMouseMove)
   document.addEventListener('mouseup', handleMouseUp)
+}
+// 处理鼠标移除事件
+const handleComponentMouseOut = (event: MouseEvent, component: Component) => {
+  event.stopPropagation()
+  // 只移除事件监听，避免拖拽状态异常
+  document.removeEventListener('mousemove', handleMouseMove)
+  document.removeEventListener('mouseup', handleMouseUp)
 }
 
 // 处理鼠标移动事件
@@ -415,6 +443,12 @@ const handleMouseUp = () => {
   // 移除事件监听
   document.removeEventListener('mousemove', handleMouseMove)
   document.removeEventListener('mouseup', handleMouseUp)
+  
+  // 确保组件保持选中状态
+  if (selectedComponent.value) {
+    // 不清除选中状态，保持组件被选中
+    // 这里不设置border，因为我们使用outline来显示选中状态
+  }
 }
 
 // 处理组件右键菜单
@@ -492,7 +526,11 @@ const handleLockComponent = () => {
 // 处理画布点击事件，关闭右键菜单
 const handleCanvasClick = () => {
   closeContextMenu()
-  selectedComponent.value = null
+  
+  // 清除选中组件的状态
+  if (selectedComponent.value) {
+    selectedComponent.value = null
+  }
 }
 
 // 根据组件类型获取对应的组件
@@ -507,6 +545,13 @@ const getComponentByType = (type: ComponentType) => {
       return markRaw(DynamicTable);
     case ComponentType.DATE_PICKER:
       return markRaw(DatePicker);
+    // 图表组件
+    case ComponentType.CHART_LINE:
+      return markRaw(LineChart);
+    case ComponentType.CHART_BAR:
+      return markRaw(BarChart);
+    case ComponentType.CHART_PIE:
+      return markRaw(PieChart);
     default:
       return null;
   }

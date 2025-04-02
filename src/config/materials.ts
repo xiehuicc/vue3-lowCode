@@ -36,19 +36,19 @@ export const materialCategories: MaterialCategory[] = [
         type: ComponentType.CHART_LINE,
         name: '折线图',
         icon: 'Picture',
-        image: '../images/line-simple.png',
+        image: '/src/images/line-simple.png',
       },
       {
         type: ComponentType.CHART_BAR,
         name: '柱状图',
         icon: 'Picture',
-        image: '../images/bar-simple.png',
+        image: '/src/images/bar-simple.png',
       },
       {
         type: ComponentType.CHART_PIE,
         name: '饼图',
         icon: 'Picture',
-        image: '../images/pie-simple.png',
+        image: '/src/images/pie-simple.png',
       },
       {
         type: ComponentType.CHART_MAP,
