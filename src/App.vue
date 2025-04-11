@@ -102,12 +102,12 @@
           </div>
         </div>
       </el-main>
-      <el-aside width="300px" class="config-panel">
-        <h3>属性配置</h3>
-        <div class="config-form">
-          <!-- 属性配置表单 -->
-        </div>
-      </el-aside>
+      <el-drawer width="300px" class="config-panel">
+        <property-panel
+          :selected-component="selectedComponent"
+          @update:selected-component="updateComponent"
+        />
+      </el-drawer>
     </el-container>
   </div>
 </template>
@@ -119,6 +119,7 @@ import { ComponentType } from '@/types/component'
 import type { Component, ResizeEventData } from '@/types/component'  // 使用 type 导入，解决将类型 Component 作为值使用问题
 import ContextMenu from '@/components/common/ContextMenu.vue'
 import ResizeHandles from '@/components/common/ResizeHandles.vue'
+import PropertyPanel from '@/components/common/PropertyPanel.vue'
 
 // 导入组件
 import Text from '@/components/basic/Text.vue'
@@ -129,7 +130,9 @@ import DatePicker from '@/components/interactive/DatePicker.vue'
 import LineChart from '@/components/data/charts/LineChart.vue'
 import BarChart from '@/components/data/charts/BarChart.vue'
 import PieChart from '@/components/data/charts/PieChart.vue'
-
+import Button from '@/components/basic/Button.vue'
+import Container from '@/components/basic/Container.vue'
+import TablePagination from '@/components/data/tables/PaginationTable.vue'
 // 修改组件列表和选中组件的类型定义
 const canvas = ref<HTMLElement | null>(null)
 const components = reactive<Component[]>([])
@@ -552,6 +555,12 @@ const getComponentByType = (type: ComponentType) => {
       return markRaw(BarChart);
     case ComponentType.CHART_PIE:
       return markRaw(PieChart);
+    case ComponentType.BUTTON:
+      return markRaw(Button);
+    case ComponentType.CONTAINER:
+      return markRaw(Container);
+    case ComponentType.TABLE_PAGINATION:
+      return markRaw(TablePagination);
     default:
       return null;
   }
@@ -634,7 +643,13 @@ const updateComponent = (updatedComponent: Component) => {
         border-radius: 4px;
         position: relative;
         overflow: auto;
+        // 添加网格背景
+        background-image: 
+          linear-gradient(to right, #e5e5e5 1px, transparent 1px),
+          linear-gradient(to bottom, #e5e5e5 1px, transparent 1px);
+        background-size: 20px 20px;
         
+        // 空画布样式
         .empty-canvas {
           display: flex;
           justify-content: center;
@@ -646,6 +661,8 @@ const updateComponent = (updatedComponent: Component) => {
           border: 2px dashed #dcdfe6;
           border-radius: 4px;
           margin: 20px;
+          // 确保网格在空画布下方显示
+          background: transparent;
         }
         
         // 组件样式

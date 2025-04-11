@@ -24,7 +24,6 @@
 
 <script lang="ts" setup>
 import { ref, reactive, defineProps, defineEmits } from 'vue';
-import { CopyDocument, Delete, Lock } from '@element-plus/icons-vue';
 
 interface Props {
   visible: boolean;

@@ -49,6 +49,13 @@ export interface ComponentData {
   [key: string]: any;
 }
 
+// ResizeHandles组件事件数据接口
+export interface ResizeEventData {
+  direction: string;
+  startEvent: MouseEvent;
+  moveEvent: MouseEvent | null;
+}
+
 // 组件接口
 export interface Component {
   id: string;
@@ -63,7 +70,18 @@ export interface Component {
   };
   data?: Record<string, any>;
   children?: Component[];
-  locked?: boolean; // 添加可选属性
+  locked?: boolean;
+  dataConfig?: {
+    source: 'static' | 'api';
+    staticData?: any;
+    apiConfig?: {
+      url: string;
+      method: string;
+      headers: string;
+      params: string;
+      pollingInterval: number;
+    };
+  };
 }
 
 // 物料组件分类

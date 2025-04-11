@@ -2,7 +2,6 @@
   <div 
     class="low-code-container"
     :style="componentStyle"
-    <!-- 添加这些事件处理 -->
     @mousedown="$emit('mousedown', $event)"
     @contextmenu="$emit('contextmenu', $event)"
   >
